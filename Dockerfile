@@ -5,7 +5,7 @@
 FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    HF_HOME=/runpod-volume/hf \
+    HF_HOME=/opt/models/hf \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -17,7 +17,11 @@ RUN pip3 install --no-cache-dir torch==2.8.0+cu128 torchaudio==2.8.0+cu128 \
         --extra-index-url https://download.pytorch.org/whl/cu128
 
 # OmniVoice (TTS), Demucs (Stem-Trennung), RunPod SDK
-RUN pip3 install --no-cache-dir omnivoice demucs runpod requests
+RUN pip3 install --no-cache-dir omnivoice demucs runpod requests huggingface_hub
+
+# Modelle schon JETZT ins Image backen → kein Network-Volume nötig, schnelle Cold Starts (gratis)
+RUN python3 -c "from huggingface_hub import snapshot_download; snapshot_download('k2-fsa/OmniVoice')"
+RUN python3 -c "from demucs.pretrained import get_model; get_model('htdemucs')"
 
 COPY handler.py /handler.py
 
