@@ -25,6 +25,9 @@ import torch
 import torchaudio
 import runpod
 
+HANDLER_VERSION = "numpy-safe-v2"
+print(f"[ytcc-voice] handler version: {HANDLER_VERSION}", flush=True)
+
 _OV = None
 
 
