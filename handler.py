@@ -74,9 +74,16 @@ def _tts(inp):
     if inp.get("num_step"): kw["num_step"] = int(inp["num_step"])
     mode = (inp.get("mode") or "auto").lower()
     if mode == "clone" and inp.get("ref_audio_url"):
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            f.write(_dl(inp["ref_audio_url"])); refp = f.name
-        audio = model.generate(text=text, ref_audio=refp, ref_text=(inp.get("ref_text") or None), **kw)
+        # Referenz herunterladen und per ffmpeg sauber nach 24k-Mono-WAV normalisieren
+        # (egal ob mp3/m4a/ogg/…) — sonst kann OmniVoice die Stimme nicht zuverlässig klonen.
+        raw = _dl(inp["ref_audio_url"])
+        with tempfile.TemporaryDirectory() as d:
+            rawp = os.path.join(d, "ref_raw"); refp = os.path.join(d, "ref.wav")
+            with open(rawp, "wb") as f: f.write(raw)
+            subprocess.run(["ffmpeg", "-y", "-i", rawp, "-ac", "1", "-ar", "24000", refp], capture_output=True)
+            if not os.path.exists(refp):
+                refp = rawp
+            audio = model.generate(text=text, ref_audio=refp, ref_text=(inp.get("ref_text") or None), **kw)
     elif mode == "design" and (inp.get("instruct") or "").strip():
         audio = model.generate(text=text, instruct=inp["instruct"].strip(), **kw)
     else:
