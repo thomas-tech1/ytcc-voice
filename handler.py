@@ -20,6 +20,7 @@ Antworten sind base64-WAV, damit kein zusätzlicher Storage nötig ist.
 """
 import os, io, base64, tempfile, subprocess, traceback
 import requests
+import numpy as np
 import torch
 import torchaudio
 import runpod
@@ -42,9 +43,20 @@ def _dl(url, timeout=180):
     r = requests.get(url, timeout=timeout); r.raise_for_status(); return r.content
 
 
-def _wav_b64(tensor, sr=24000):
+def _wav_b64(audio, sr=24000):
+    """Robust: akzeptiert torch.Tensor ODER numpy.ndarray, 1-D oder 2-D, und schreibt WAV."""
+    t = audio
+    if isinstance(t, np.ndarray):
+        t = torch.from_numpy(t)
+    elif not torch.is_tensor(t):
+        t = torch.as_tensor(np.asarray(t))
+    t = t.detach().to("cpu").float()
+    if t.dim() == 1:
+        t = t.unsqueeze(0)          # (T,) -> (1, T)
+    elif t.dim() > 2:
+        t = t.reshape(t.shape[0], -1)
     buf = io.BytesIO()
-    torchaudio.save(buf, tensor.cpu(), sr, format="wav")
+    torchaudio.save(buf, t, sr, format="wav")
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
@@ -66,7 +78,8 @@ def _tts(inp):
         audio = model.generate(text=text, instruct=inp["instruct"].strip(), **kw)
     else:
         audio = model.generate(text=text, **kw)
-    return {"audio_b64": _wav_b64(audio[0], 24000), "sr": 24000}
+    first = audio[0] if isinstance(audio, (list, tuple)) else audio
+    return {"audio_b64": _wav_b64(first, 24000), "sr": 24000}
 
 
 def _separate(inp):
