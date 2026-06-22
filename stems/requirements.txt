@@ -1,0 +1,50 @@
+# ===========================================================================
+# Python-Abhaengigkeiten fuer den RunPod-Audio-Worker
+# ===========================================================================
+#
+# Die Torch-Stacks (torch/torchaudio) werden bewusst im Dockerfile installiert,
+# damit die CUDA-Variante (cu118) zur Basis passt. Hier nur als Referenz
+# auskommentiert lassen, oder bei CPU-Test ueberschreiben.
+#
+#   torch==2.0.0
+#   torchaudio==2.0.1
+#
+# ---------------------------------------------------------------------------
+
+# --- RunPod Serverless SDK ---
+runpod>=1.6.0
+
+# --- Forced-Alignment / ASR ---
+# WhisperX bringt faster-whisper, ctranslate2, transformers, pyannote etc. mit.
+whisperx>=3.1.1
+
+# --- I/O & Audio-Utilities ---
+requests>=2.31.0
+numpy>=1.24,<2.0          # <2.0 wegen Kompatibilitaet mit aelterem torch/ctranslate2
+soundfile>=0.12.1
+ffmpeg-python>=0.2.0      # optional; im Handler wird ffmpeg direkt via subprocess genutzt
+
+# ===========================================================================
+# Bandit-v2-Abhaengigkeiten (aus dem Repo requirements.in / requirements.txt)
+# ---------------------------------------------------------------------------
+# Diese werden bevorzugt im Dockerfile ueber das geklonte Repo installiert
+# (pip install -r /opt/bandit-v2/requirements.txt). Hier zur Transparenz die
+# Kern-Pakete; das Repo enthaelt zusaetzlich Netflix-interne Pakete
+# (nflx-manta, nflx_metaflow, ray[...]), die fuer reine Inferenz NICHT
+# noetig sind und im Dockerfile herausgefiltert werden.
+#
+# VERIFY: Endgueltige Liste gegen die requirements.txt des aktuellen
+#         Repo-Commits abgleichen.
+# ---------------------------------------------------------------------------
+pytorch-lightning>=2.3.0
+torchmetrics
+hydra-core
+omegaconf
+asteroid
+torch-audiomentations
+librosa
+pedalboard
+tqdm
+# nflx-manta            # Netflix-intern, fuer Inferenz nicht erforderlich
+# nflx_metaflow         # Netflix-intern, fuer Inferenz nicht erforderlich
+# ray[default,data,train]==2.11.0   # nur fuer Training/Tuning noetig
