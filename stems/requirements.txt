@@ -49,26 +49,8 @@ soundfile>=0.12.1
 ffmpeg-python>=0.2.0      # optional; im Handler wird ffmpeg direkt via subprocess genutzt
 
 # ===========================================================================
-# Bandit-v2-Abhaengigkeiten (aus dem Repo requirements.in / requirements.txt)
-# ---------------------------------------------------------------------------
-# Diese werden bevorzugt im Dockerfile ueber das geklonte Repo installiert
-# (pip install -r /opt/bandit-v2/requirements.txt). Hier zur Transparenz die
-# Kern-Pakete; das Repo enthaelt zusaetzlich Netflix-interne Pakete
-# (nflx-manta, nflx_metaflow, ray[...]), die fuer reine Inferenz NICHT
-# noetig sind und im Dockerfile herausgefiltert werden.
-#
-# VERIFY: Endgueltige Liste gegen die requirements.txt des aktuellen
-#         Repo-Commits abgleichen.
-# ---------------------------------------------------------------------------
-pytorch-lightning>=2.3.0
-torchmetrics
-hydra-core
-omegaconf
-asteroid
-torch-audiomentations
-librosa
-pedalboard
-tqdm
-# nflx-manta            # Netflix-intern, fuer Inferenz nicht erforderlich
-# nflx_metaflow         # Netflix-intern, fuer Inferenz nicht erforderlich
-# ray[default,data,train]==2.11.0   # nur fuer Training/Tuning noetig
+# Bandit-v2-Abhaengigkeiten werden NICHT hier installiert, sondern im Dockerfile
+# direkt aus dem geklonten Repo (pip install -r /opt/bandit-v2/requirements.txt).
+# Sie hier zu wiederholen (asteroid, pedalboard, pytorch-lightning …) fuehrt zu
+# Versionskonflikten mit dem WhisperX-Stack -> deshalb bewusst entfernt.
+# ===========================================================================
