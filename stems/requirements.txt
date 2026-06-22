@@ -2,25 +2,44 @@
 # Python-Abhaengigkeiten fuer den RunPod-Audio-Worker
 # ===========================================================================
 #
-# Die Torch-Stacks (torch/torchaudio) werden bewusst im Dockerfile installiert,
-# damit die CUDA-Variante (cu118) zur Basis passt. Hier nur als Referenz
-# auskommentiert lassen, oder bei CPU-Test ueberschreiben.
-#
-#   torch==2.0.0
-#   torchaudio==2.0.1
+# Die Torch-Stacks (torch/torchaudio) werden bewusst im Dockerfile installiert
+# (cu118-Index-URL), damit die CUDA-Variante zur Basis passt. Sie stehen hier
+# zusaetzlich gepinnt, damit pip die Versionen NICHT durch Transitiv-Deps
+# wieder hochzieht (z.B. via pyannote.audio / pytorch-lightning).
 #
 # ---------------------------------------------------------------------------
+# WICHTIG / Begruendung der Pins (Versionskonflikt-Fix):
+#   Fehler war: "module 'torchaudio' has no attribute 'AudioMetaData'"
+#   Ursache:    torchaudio >=2.8 hat das Top-Level torchaudio.AudioMetaData und
+#               torchaudio.list_audio_backends() deprecatet (entfernt in 2.9),
+#               waehrend pyannote.audio 3.x diese APIs noch nutzt.
+#   Loesung (Option B): torch/torchaudio auf ein konsistentes cu118-Paar 2.1.2
+#               heben. torchaudio 2.1.2 besitzt AudioMetaData UND list_audio_backends
+#               UND die backend=-Signatur von torchaudio.info (erst ab 2.1 da) ->
+#               pyannote.audio 3.3.2 importiert/laeuft sauber.
+#   Hinweis:    ctranslate2 muss auf cuDNN-8/CUDA-11.8 bleiben -> 3.24.0 ist die
+#               letzte cuDNN-8-kompatible Version (4.x braucht cuDNN 9 / CUDA 12).
+# ---------------------------------------------------------------------------
+
+# --- Torch-Stack: muss zum cu118-Wheel-Paar aus dem Dockerfile passen ---
+# (torch & torchaudio in gleicher Minor-Version; cu118-Wheels offiziell verfuegbar)
+torch==2.1.2
+torchaudio==2.1.2
 
 # --- RunPod Serverless SDK ---
 runpod>=1.6.0
 
 # --- Forced-Alignment / ASR ---
-# WhisperX bringt faster-whisper, ctranslate2, transformers, pyannote etc. mit.
-whisperx>=3.1.1
+# WhisperX 3.3.1 pinnt pyannote.audio==3.3.2 und faster-whisper==1.1.0 und
+# fordert nur torch>=2 / torchaudio>=2 -> vertraegt sich mit den cu118-Pins oben.
+whisperx==3.3.1
+pyannote.audio==3.3.2     # nutzt torchaudio.AudioMetaData (in 2.1.2 noch vorhanden)
+faster-whisper==1.1.0     # von WhisperX 3.3.1 gefordert
+ctranslate2==3.24.0       # letzte cuDNN-8 / CUDA-11.8-kompatible Version
 
 # --- I/O & Audio-Utilities ---
 requests>=2.31.0
-numpy>=1.24,<2.0          # <2.0 wegen Kompatibilitaet mit aelterem torch/ctranslate2
+numpy>=1.24,<2.0          # <2.0 wegen Kompatibilitaet mit torch 2.1.x / ctranslate2 3.24
 soundfile>=0.12.1
 ffmpeg-python>=0.2.0      # optional; im Handler wird ffmpeg direkt via subprocess genutzt
 

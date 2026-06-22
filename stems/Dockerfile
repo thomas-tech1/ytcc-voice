@@ -57,7 +57,24 @@ RUN wget --tries=3 -O /opt/checkpoints/bandit-v2/${BANDIT_CKPT_FILE} \
 # ---------------------------------------------------------------------------
 # 3) Worker-Code + Python-Abhaengigkeiten
 # ---------------------------------------------------------------------------
+#
+# WICHTIG (Versionskonflikt-Fix "torchaudio has no attribute 'AudioMetaData'"):
+# torch/torchaudio werden ZUERST und explizit aus dem cu118-Wheel-Index in der
+# konsistenten Minor-Version 2.1.2 installiert. torchaudio 2.1.2 besitzt das
+# Top-Level torchaudio.AudioMetaData + list_audio_backends, die pyannote.audio
+# 3.3.2 (von WhisperX 3.3.1 gepinnt) noch nutzt. So passt der CUDA-Stack zur
+# CUDA-11.8-Basis und der AudioMetaData-Importfehler tritt nicht auf.
+# Reihenfolge ist bewusst: erst der Torch-Stack, dann die uebrigen Requirements.
+RUN pip install --no-cache-dir \
+        torch==2.1.2 torchaudio==2.1.2 \
+        --index-url https://download.pytorch.org/whl/cu118
+
 COPY requirements.txt /opt/runpod-audio/requirements.txt
+# Restliche Abhaengigkeiten installieren. torch/torchaudio sind bereits in 2.1.2
+# (cu118) vorhanden und in requirements.txt identisch gepinnt -> pip laesst sie
+# stehen und zieht KEINE CPU-/Default-Wheels nach. Die WhisperX-Transitiv-Deps
+# (pyannote.audio 3.3.2, faster-whisper 1.1.0, ctranslate2 3.24.0) sind dort
+# kompatibel mitgepinnt.
 RUN pip install --no-cache-dir -r /opt/runpod-audio/requirements.txt
 
 COPY handler.py /opt/runpod-audio/handler.py
