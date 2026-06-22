@@ -21,30 +21,33 @@
 #               letzte cuDNN-8-kompatible Version (4.x braucht cuDNN 9 / CUDA 12).
 # ---------------------------------------------------------------------------
 
-# --- Torch-Stack: muss zum cu118-Wheel-Paar aus dem Dockerfile passen ---
-# (torch & torchaudio in gleicher Minor-Version; cu118-Wheels offiziell verfuegbar)
-torch==2.1.2
-torchaudio==2.1.2
+# --- Torch-Stack: cu121 (CUDA 12), passend zum Dockerfile-Install ---
+# Die cu121-Wheels bringen die CUDA-12-Runtime selbst mit -> laeuft auf der
+# vorhandenen Basis (RunPod-GPU-Treiber unterstuetzt CUDA 12). torch/torchaudio/
+# torchvision in konsistenter Version 2.2.2 / 0.17.2.
+torch==2.2.2
+torchaudio==2.2.2
+torchvision==0.17.2
 
 # --- RunPod Serverless SDK ---
 runpod>=1.6.0
 
-# --- Forced-Alignment / ASR (cuDNN-8 / CUDA-11.8-Stack) ---
-# WICHTIG: faster-whisper >=1.1 verlangt ctranslate2 >=4.0 (cuDNN 9 / CUDA 12) und
-# kollidiert daher mit dieser CUDA-11.8/cuDNN-8-Basis. Deshalb der konsistente,
-# per pip-Resolver verifizierte Stack:
-#   whisperx 3.1.5 -> pinnt faster-whisper==1.0.1 (vertraegt ctranslate2 3.x)
-#                  -> pinnt pyannote.audio==3.1.1 (nutzt torchaudio.AudioMetaData,
-#                     vorhanden in torchaudio 2.1.2)
-# ctranslate2 3.24.0 = letzte cuDNN-8/CUDA-11.8-kompatible Version.
-whisperx==3.1.5
-pyannote.audio==3.1.1
-faster-whisper==1.0.1
-ctranslate2==3.24.0
+# --- Forced-Alignment / ASR (moderner, wheel-only Stack) ---
+# Grund: av (von faster-whisper gezogen) hat erst ab v14 cp310-Wheels. av>=14 kommt
+# nur ueber faster-whisper>=1.1, das ctranslate2 4.x (CUDA 12) verlangt -> deshalb
+# der cu121-Torch-Stack oben. Verifiziert per pip-Resolver, av kommt als Wheel (kein
+# Quell-Build mehr), kein ctranslate2-Konflikt.
+#   whisperx 3.3.1 -> faster-whisper 1.1.0 (av>=11 -> zieht av17-Wheel)
+#                  -> pyannote.audio 3.3.2 (nutzt torchaudio.AudioMetaData, in 2.2.2 vorhanden)
+#   ctranslate2 4.4.0 (<4.5.0 fuer whisperx 3.3.1; bringt cuDNN9 via nvidia-*-Wheels mit)
+whisperx==3.3.1
+pyannote.audio==3.3.2
+faster-whisper==1.1.0
+ctranslate2==4.4.0
 
 # --- I/O & Audio-Utilities ---
 requests>=2.31.0
-numpy>=1.24,<2.0          # <2.0 wegen Kompatibilitaet mit torch 2.1.x / ctranslate2 3.24
+numpy>=1.24,<2.0          # <2.0 wegen Kompatibilitaet mit torch 2.2.x
 soundfile>=0.12.1
 ffmpeg-python>=0.2.0      # optional; im Handler wird ffmpeg direkt via subprocess genutzt
 

@@ -16,9 +16,17 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     HF_HOME=/opt/hf-cache
 
-# --- System-Pakete: ffmpeg (Konvertierung), git, wget ----------------------
+# --- System-Pakete -----------------------------------------------------------
+#  ffmpeg            : Audio-Konvertierung im Handler
+#  git, wget         : Repo-Clone + Checkpoint-Download
+#  pkg-config + libav*-dev : NÖTIG, damit PyAV (av==11.*, von faster-whisper
+#                    gezogen) aus dem Quelltext gebaut werden kann, falls kein
+#                    passendes Wheel vorliegt ("pkg-config is required for building PyAV").
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg git wget ca-certificates \
+        pkg-config \
+        libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev \
+        libavfilter-dev libswscale-dev libswresample-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt
@@ -66,8 +74,8 @@ RUN wget --tries=3 -O /opt/checkpoints/bandit-v2/${BANDIT_CKPT_FILE} \
 # CUDA-11.8-Basis und der AudioMetaData-Importfehler tritt nicht auf.
 # Reihenfolge ist bewusst: erst der Torch-Stack, dann die uebrigen Requirements.
 RUN pip install --no-cache-dir \
-        torch==2.1.2 torchaudio==2.1.2 \
-        --index-url https://download.pytorch.org/whl/cu118
+        torch==2.2.2 torchaudio==2.2.2 torchvision==0.17.2 \
+        --index-url https://download.pytorch.org/whl/cu121
 
 COPY requirements.txt /opt/runpod-audio/requirements.txt
 # Restliche Abhaengigkeiten installieren. torch/torchaudio sind bereits in 2.1.2
