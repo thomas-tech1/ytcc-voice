@@ -29,13 +29,18 @@ torchaudio==2.1.2
 # --- RunPod Serverless SDK ---
 runpod>=1.6.0
 
-# --- Forced-Alignment / ASR ---
-# WhisperX 3.3.1 pinnt pyannote.audio==3.3.2 und faster-whisper==1.1.0 und
-# fordert nur torch>=2 / torchaudio>=2 -> vertraegt sich mit den cu118-Pins oben.
-whisperx==3.3.1
-pyannote.audio==3.3.2     # nutzt torchaudio.AudioMetaData (in 2.1.2 noch vorhanden)
-faster-whisper==1.1.0     # von WhisperX 3.3.1 gefordert
-ctranslate2==3.24.0       # letzte cuDNN-8 / CUDA-11.8-kompatible Version
+# --- Forced-Alignment / ASR (cuDNN-8 / CUDA-11.8-Stack) ---
+# WICHTIG: faster-whisper >=1.1 verlangt ctranslate2 >=4.0 (cuDNN 9 / CUDA 12) und
+# kollidiert daher mit dieser CUDA-11.8/cuDNN-8-Basis. Deshalb der konsistente,
+# per pip-Resolver verifizierte Stack:
+#   whisperx 3.1.5 -> pinnt faster-whisper==1.0.1 (vertraegt ctranslate2 3.x)
+#                  -> pinnt pyannote.audio==3.1.1 (nutzt torchaudio.AudioMetaData,
+#                     vorhanden in torchaudio 2.1.2)
+# ctranslate2 3.24.0 = letzte cuDNN-8/CUDA-11.8-kompatible Version.
+whisperx==3.1.5
+pyannote.audio==3.1.1
+faster-whisper==1.0.1
+ctranslate2==3.24.0
 
 # --- I/O & Audio-Utilities ---
 requests>=2.31.0
