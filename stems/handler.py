@@ -221,14 +221,19 @@ def separate_stems(in_wav: str, out_dir: str) -> dict:
     os.makedirs(out_dir, exist_ok=True)
 
     # --- Option (A): inference.py als Subprozess -------------------------
-    # VERIFY: Override-Keys/-Werte gegen expt/inference.yaml & configs/ pruefen.
+    # Hydra-Overrides gegen expt/inference.yaml verifiziert:
+    #  - ckpt_path / test_audio / output_path existieren im Schema (kein '+' noetig).
+    #  - 'inference=chunked-tensor' ueberschreibt den Default 'chunked-tensor-a100'
+    #    (kleinere Batch-Size -> passt auf 24-GB-GPUs wie 3090/L4/A5000).
+    #  - fs NICHT setzen: das v3-Modell ist 48 kHz (Default fs=48000); inference.py
+    #    resampled die Eingabe selbst. model_variant NICHT setzen (Key existiert
+    #    nicht -> Hydra-Fehler; output_path genuegt fuer die Ausgabe).
     cmd = [
         "python", "inference.py",
         f"ckpt_path={BANDIT_CKPT_PATH}",
         f"test_audio={in_wav}",
         f"output_path={out_dir}",
-        f"model_variant={BANDIT_MODEL_VARIANT}",
-        f"fs={BANDIT_FS}",
+        "inference=chunked-tensor",
     ]
     proc = subprocess.run(
         cmd,

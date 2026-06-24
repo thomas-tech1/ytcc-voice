@@ -60,6 +60,12 @@ RUN git clone --depth 1 https://github.com/kwatcharasupat/bandit-v2.git /opt/ban
 COPY patch_bandit_ray.py /tmp/patch_bandit_ray.py
 RUN python3 /tmp/patch_bandit_ray.py
 
+# Hydra-Searchpath fixen: expt/*.yaml referenzieren `file://$REPO_ROOT/configs`,
+# aber Hydra expandiert $REPO_ROOT NICHT -> die Config-Gruppen (data, models,
+# inference, ...) werden sonst nicht gefunden ("Could not find 'inference/...'").
+# Durch den absoluten Repo-Pfad ersetzen, damit configs/ aufgeloest wird.
+RUN sed -i 's|\$REPO_ROOT|/opt/bandit-v2|g' /opt/bandit-v2/expt/*.yaml
+
 # HINWEIS: Die Bandit-Inferenz-Abhaengigkeiten werden NICHT aus
 # /opt/bandit-v2/requirements.txt installiert. Diese Datei zeigt per
 # `--index-url https://pypi.netflix.net/simple` auf ein Netflix-internes,
