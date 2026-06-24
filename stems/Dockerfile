@@ -36,14 +36,42 @@ WORKDIR /opt
 # ---------------------------------------------------------------------------
 RUN git clone --depth 1 https://github.com/kwatcharasupat/bandit-v2.git /opt/bandit-v2
 
-# Bandit-v2-Requirements installieren, aber Netflix-interne / Trainings-Pakete
-# herausfiltern (nflx-*, ray[...]), die fuer reine Inferenz nicht noetig und
-# nicht oeffentlich installierbar sind.
-# VERIFY: Filterliste gegen die reale requirements.txt des Repos pruefen.
-RUN sed -E '/nflx|metaflow|^ray|jasper|manta/d' /opt/bandit-v2/requirements.txt \
-        > /opt/bandit-v2/requirements.inference.txt || true \
-    && pip install --no-cache-dir -r /opt/bandit-v2/requirements.inference.txt || \
-       echo "WARN: Teil-Install der Bandit-Requirements fehlgeschlagen - manuell pruefen"
+# ---------------------------------------------------------------------------
+# 1b) Repo-Patch: ray-Import in src/system/utils.py optional machen
+# ---------------------------------------------------------------------------
+# src/system/utils.py macht auf MODUL-EBENE `from ray.train.lightning import (
+#   RayDDPStrategy, RayLightningEnvironment, RayTrainReportCallback,
+#   prepare_trainer)`. `ray` ist ein reines TRAININGS-Paket (verteiltes Training
+# via Ray Train) und steht NICHT im oeffentlichen Inferenz-Dep-Stack -> beim
+# blossen Import von inference.py wuerde `ModuleNotFoundError: No module named
+# 'ray'` fliegen. Empirisch verifiziert: Diese vier Ray-Symbole werden NUR im
+# Trainings-Codepfad benutzt (build_trainer / build_strategy[RayDDPStrategy] /
+# CALLBACK_SEARCH_SPACE[RayTrainReportCallback] / PLUGIN_SEARCH_SPACE[
+# RayLightningEnvironment]). Der INFERENZ-Pfad (inference.py -> build_system ->
+# build_model/build_loss_handler/build_metric_handler/build_optim_handler/
+# build_inference) ruft KEINES davon auf. Daher kapseln wir den Import in
+# try/except und ersetzen die Symbole im Fehlerfall durch None, damit die
+# Modul-Ebene weiter laedt. ray wird bewusst NICHT installiert.
+# Der Patch ist idempotent (Marker-Kommentar) und bricht NICHT, falls die Zeile
+# schon angepasst ist.
+# Patch als eigenstaendiges Skript (KEIN Dockerfile-Heredoc -> unabhaengig von
+# BuildKit-Heredoc-Support, bulletproof). Idempotent; bricht ab, falls der
+# ray-Import upstream eine unbekannte Form hat.
+COPY patch_bandit_ray.py /tmp/patch_bandit_ray.py
+RUN python3 /tmp/patch_bandit_ray.py
+
+# HINWEIS: Die Bandit-Inferenz-Abhaengigkeiten werden NICHT aus
+# /opt/bandit-v2/requirements.txt installiert. Diese Datei zeigt per
+# `--index-url https://pypi.netflix.net/simple` auf ein Netflix-internes,
+# von aussen unerreichbares Repo und listet massenhaft Netflix-/Trainings-
+# Pakete (nflx-*, jasper, metatron, ray, metaflow, ...). Der Install daraus
+# schlaegt komplett fehl -> es waere KEINE einzige Bandit-Dep installiert
+# (frueher durch `|| echo WARN` stillschweigend verschluckt, was zu
+# `ModuleNotFoundError: No module named 'hydra'` beim Bandit-Aufruf fuehrte).
+#
+# Stattdessen werden die MINIMALEN, oeffentlich (PyPI) installierbaren
+# Laufzeit-/Inferenz-Deps weiter unten EXPLIZIT installiert -- bewusst NACH
+# dem torch-2.2.2-Install, damit torch/torchaudio fix bleiben. Siehe dort.
 
 # ---------------------------------------------------------------------------
 # 2) Zenodo-Checkpoint laden
@@ -76,6 +104,46 @@ RUN wget --tries=3 -O /opt/checkpoints/bandit-v2/${BANDIT_CKPT_FILE} \
 RUN pip install --no-cache-dir \
         torch==2.2.2 torchaudio==2.2.2 torchvision==0.17.2 \
         --index-url https://download.pytorch.org/whl/cu121
+
+# ---------------------------------------------------------------------------
+# Bandit-v2 INFERENZ-Abhaengigkeiten (oeffentliches PyPI, KEIN Netflix-Index)
+# ---------------------------------------------------------------------------
+# Bewusst NACH dem torch-2.2.2-Install (cu121): so bleibt der verifizierte
+# Torch-Stack fix und wird durch diese Deps NICHT downgegradet (kein torch==2.0).
+#
+# Diese Liste ist die minimale Menge an EXTERNEN Paketen, die der reine
+# Inferenz-Pfad von Bandit-v2 wirklich importiert (Import-Graph:
+# inference.py -> src.system.utils -> models/bandit/*, system/*, metrics,
+# losses, data). Netflix-/Ray-/Metaflow-/Training-Pakete werden bewusst
+# weggelassen (nicht oeffentlich + fuer Inferenz unnoetig).
+#
+#   hydra-core==1.3.2  : inference.py nutzt @hydra.main (Config-getrieben).
+#                        Zieht omegaconf + antlr4-python3-runtime (rein Python).
+#   omegaconf==2.3.0   : DictConfig/OmegaConf. Version erfuellt sowohl hydra-core
+#                        (>=2.2,<2.4) als auch pyannote.audio (>=2.1,<3.0).
+#   pytorch-lightning==2.3.0 : System = pl.LightningModule; pl.Trainer/seed.
+#                        Koexistiert konfliktfrei mit dem `lightning`-Meta-Paket,
+#                        das pyannote.audio 3.3.2 zieht.
+#   torchmetrics       : src/metrics/snr.py + system/utils (SignalNoiseRatio).
+#   librosa            : models/bandit/utils.py (hz_to_midi/midi_to_hz fuer die
+#                        musikalische Bandsplit-Spezifikation). Zieht numba,
+#                        soundfile, scikit-learn, soxr, pooch (alles Wheels).
+#   tqdm               : Fortschrittsbalken im Chunked-Inference-Handler.
+#   pandas             : von models/bandit/utils.py referenziert; reines Wheel,
+#                        zur Sicherheit mitinstalliert.
+#
+# torch/torchaudio sind hier bereits in 2.2.2 vorhanden -> pip laesst sie stehen
+# und zieht KEINE anderen Torch-Wheels nach (per Trockenlauf verifiziert).
+# Dieser RUN ist bewusst NICHT fehlertolerant: schlaegt er fehl, soll der Build
+# abbrechen (im Gegensatz zum frueheren `|| echo WARN`).
+RUN pip install --no-cache-dir \
+        hydra-core==1.3.2 \
+        omegaconf==2.3.0 \
+        pytorch-lightning==2.3.0 \
+        torchmetrics \
+        librosa \
+        tqdm \
+        pandas
 
 COPY requirements.txt /opt/runpod-audio/requirements.txt
 # Restliche Abhaengigkeiten installieren. torch/torchaudio sind bereits in 2.1.2
