@@ -44,6 +44,9 @@ whisperx==3.3.1
 pyannote.audio==3.3.2
 faster-whisper==1.1.0
 ctranslate2==4.4.0
+# WICHTIG: transformers 5.x bricht WhisperX (NameError: torch in pipelines/base.py).
+# Auf 4.x pinnen -> WhisperX-Pipeline funktioniert.
+transformers==4.48.3
 
 # --- I/O & Audio-Utilities ---
 requests>=2.31.0
